@@ -299,7 +299,7 @@ export async function processDueSchedules(limit = 1) {
           publicKey: required("VAPID_PUBLIC_KEY"),
           privateKey: required("VAPID_PRIVATE_KEY"),
         },
-        payload: {
+        payload: JSON.stringify({
           messageKind: "content",
           messageType: "instant",
           source: "instant",
@@ -317,7 +317,7 @@ export async function processDueSchedules(limit = 1) {
             badge: "/icon-192.png",
             tag: `float-offline-${row.char_id}`,
           },
-        },
+        }),
       });
 
       const today = new Date().toISOString().slice(0, 10);
