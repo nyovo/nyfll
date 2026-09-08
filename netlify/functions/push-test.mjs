@@ -23,7 +23,7 @@ export default async (request) => {
       publicKey: Netlify.env.get("VAPID_PUBLIC_KEY"),
       privateKey: Netlify.env.get("VAPID_PRIVATE_KEY"),
     },
-    payload: {
+    payload: JSON.stringify({
       messageKind: "content",
       messageType: "instant",
       source: "instant",
@@ -41,7 +41,7 @@ export default async (request) => {
         badge: "/icon-192.png",
         tag: "float-offline-test",
       },
-    },
+    }),
   });
   return json(200, { ok: true, messageId });
 };
