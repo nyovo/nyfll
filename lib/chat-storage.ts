@@ -111,7 +111,7 @@ export type ChatMessage = {
         | "group_admin_notice"
         | "media_file"
         | `plugin:${string}`; // 聊天插件自定义消息类型（由注册该 kind 的插件渲染气泡）
-    origin?: "chat" | "reading_discuss" | "custom_app" | "custom_app_background";
+    origin?: "chat" | "reading_discuss" | "custom_app" | "custom_app_background" | "offline_push";
     mediaUrl?: string;
     mediaData?: {
         amount?: number;          // 红包/转账金额

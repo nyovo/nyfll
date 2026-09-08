@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, createContext, type CSSProperties, type ReactNode } from "react";
-import { Activity, Check, ChevronRight, Clock, Database, FileText, Fingerprint, Globe, HardDrive, Image, Info, KeyRound, Laptop, Layers, Link2, Loader2, LogOut, MessageSquare, Mic, SlidersHorizontal, UserCircle, Wrench, X } from "lucide-react";
+import { Activity, BellRing, Check, ChevronRight, Clock, Database, FileText, Fingerprint, Globe, HardDrive, Image, Info, KeyRound, Laptop, Layers, Link2, Loader2, LogOut, MessageSquare, Mic, SlidersHorizontal, UserCircle, Wrench, X } from "lucide-react";
 import { ConfirmDialog } from "./ui/modal";
 import { useAccount } from "@/lib/account-context";
 import { isSelfHostedModeEnabled } from "@/lib/self-hosting";
@@ -20,6 +20,7 @@ import { WeixinSettings } from "./settings/weixin-settings";
 import { ToolboxSettings } from "./settings/toolbox-settings";
 import { ModerationCenter } from "./settings/moderation-center";
 import { AgentComputerSettings } from "./settings/agent-computer-settings";
+import { OfflinePushSettings } from "./settings/offline-push-settings";
 import { fetchIsAdmin } from "@/lib/moderation-client";
 import { PageShell } from "./ui/page-shell";
 import { CardGrid, FeaturedCard, type CardItem, type FeaturedCardItem } from "./ui/card-grid";
@@ -54,6 +55,7 @@ type SubPage =
     | "weixin"
     | "toolbox"
     | "agentComputer"
+    | "offlinePush"
     | "moderation"
     | "about";
 
@@ -69,6 +71,7 @@ const SETTINGS_MENU = [
     { id: "weixin", icon: MessageSquare, label: "微信接入", desc: "iLink Bot", iconColor: CONTENT_APP_ACCENTS.chat , glass: "weixin" },
     { id: "toolbox", icon: Wrench, label: "聊天工具箱", desc: "外部工具调用", iconColor: BINDING_ACCENTS.voice , glass: "toolbox" },
     { id: "agentComputer", icon: Laptop, label: "角色电脑", desc: "云端小电脑（自部署）", iconColor: BINDING_ACCENTS.memory , glass: "agent-computer" },
+    { id: "offlinePush", icon: BellRing, label: "离线推送", desc: "锁屏和关闭 App 后接收消息", iconColor: CONTENT_APP_ACCENTS.chat, glass: "keep-alive" },
     { id: "identity", icon: UserCircle, label: "用户身份", desc: "个人信息", iconColor: BINDING_ACCENTS.identity , glass: "identity" },
     { id: "about", icon: Info, label: "关于与声明", desc: "版本与协议", iconColor: BINDING_ACCENTS.memory , glass: "about" },
 ] as const;
@@ -299,6 +302,8 @@ export function PhoneSettingsApp({ onClose, onNotice }: SettingsPageProps) {
                 return <ToolboxSettings />;
             case "agentComputer":
                 return <AgentComputerSettings onNotice={onNotice} />;
+            case "offlinePush":
+                return <OfflinePushSettings onNotice={onNotice} />;
             case "moderation":
                 return <ModerationCenter onNotice={onNotice} />;
             case "identity":
@@ -394,7 +399,7 @@ export function PhoneSettingsApp({ onClose, onNotice }: SettingsPageProps) {
                             <CardGrid
                                 label="Connections"
                                 labelClassName="settings-menu-section-title"
-                                items={SETTINGS_MENU.filter(item => ["weixin", "toolbox"].includes(item.id)).map(makeCardItem)}
+                                items={SETTINGS_MENU.filter(item => ["weixin", "toolbox", "offlinePush"].includes(item.id)).map(makeCardItem)}
                             />
                             <div className="mt-[10px]">
                                 <FeaturedCard item={agentComputerFeaturedItem} />
