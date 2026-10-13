@@ -8,6 +8,7 @@ import { Toggle } from "@/components/ui/form";
 import { loadCharacters } from "@/lib/character-storage";
 import type { Character } from "@/lib/character-types";
 import type { MemoryEntry, MemoryConfig } from "@/lib/memory-types";
+import { StudyMemoryImportButton } from "./study-memory-import";
 import { DEFAULT_CORE_MEMORY_PROMPT, DEFAULT_SUMMARIZATION_PROMPT } from "@/lib/memory-types";
 import {
     loadMemoryConfig,
@@ -701,7 +702,30 @@ export function MemoryBankPage({ view, selectedCharId, onSelectChar, onNotice }:
                         renderMemoryEntries("core", coreEntries, "暂无核心记忆。长期记忆累计到设定条数后会自动提炼，也可以手动新增。")
                     ) : (
                         /* ── Long-term: Summarized Memories ── */
-                        renderMemoryEntries("long_term", longTermEntries, "暂无长期记忆。点击设置页的手动总结，或直接新增一条记忆。")
+                        <>
+                            {longTermEntries.length > 0 && (
+                                <div className="mem-entry-toolbar">
+                                    <StudyMemoryImportButton
+                                        characterId={selectedCharId!}
+                                        characterName={selectedChar?.name}
+                                        onImported={() => loadDetailData(selectedCharId!)}
+                                        onNotice={showNotice}
+                                    />
+                                </div>
+                            )}
+                            {renderMemoryEntries("long_term", longTermEntries, "暂无长期记忆。点击设置页的手动总结，或直接新增一条记忆。")}
+                            {longTermEntries.length === 0 && (
+                                <div className="mem-entry-toolbar">
+                                    <StudyMemoryImportButton
+                                        variant="block"
+                                        characterId={selectedCharId!}
+                                        characterName={selectedChar?.name}
+                                        onImported={() => loadDetailData(selectedCharId!)}
+                                        onNotice={showNotice}
+                                    />
+                                </div>
+                            )}
+                        </>
                     )}
                     </MemoryDetailBoundary>
                 </div>
