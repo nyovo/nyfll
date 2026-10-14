@@ -13,12 +13,19 @@
 //   * 先拉取 → 给清单预览 → 再写入，不做无人值守的盲写。
 
 import { useState } from "react";
-import { Check, Download, Link2, X } from "lucide-react";
+import { Check, Download, Link2, RefreshCw, X } from "lucide-react";
 import {
     fetchRemoteMemories,
     importMemoriesIntoCharacter,
     type ImportMemoryInput,
 } from "@/lib/memory-import";
+import {
+    loadStudyMemorySyncConfig,
+    saveStudyMemorySyncConfig,
+    type StudyMemorySyncConfig,
+} from "@/lib/memory-sync/config";
+import { describeStudyMemorySyncState, loadStudyMemorySyncState } from "@/lib/memory-sync/state";
+import { runStudyMemorySync } from "@/lib/memory-sync/runner";
 
 type Props = {
     characterId: string;
@@ -38,10 +45,35 @@ export function StudyMemoryImportButton({ characterId, characterName, onImported
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState("");
     const [preview, setPreview] = useState<{ entries: ImportMemoryInput[]; remoteChar: string } | null>(null);
+    // 打开弹窗时读一次自动同步配置与状态（保存时写回）
+    const [syncConfig, setSyncConfig] = useState<StudyMemorySyncConfig>(() => loadStudyMemorySyncConfig());
+    const [syncStatus, setSyncStatus] = useState<string>(() => describeStudyMemorySyncState(loadStudyMemorySyncState()));
 
     const reset = () => {
         setError("");
         setPreview(null);
+    };
+
+    /** 打开弹窗：带上已保存的配置（角色默认当前角色，链接没存过就用上次输入的）。 */
+    const openDialog = () => {
+        reset();
+        const saved = loadStudyMemorySyncConfig();
+        setSyncConfig({
+            ...saved,
+            characterId: saved.characterId || characterId,
+            url: saved.url || url,
+        });
+        if (!url && saved.url) setUrl(saved.url);
+        setSyncStatus(describeStudyMemorySyncState(loadStudyMemorySyncState()));
+        setOpen(true);
+    };
+
+    /** 把"链接 + 角色 + 开关 + 间隔"存起来，交给后台定时器。 */
+    const persistSyncConfig = (patch: Partial<StudyMemorySyncConfig>) => {
+        const next: StudyMemorySyncConfig = { ...syncConfig, url: url.trim() || syncConfig.url, ...patch };
+        setSyncConfig(next);
+        saveStudyMemorySyncConfig(next);
+        setSyncStatus(describeStudyMemorySyncState(loadStudyMemorySyncState()));
     };
 
     const handleFetch = async () => {
@@ -62,12 +94,36 @@ export function StudyMemoryImportButton({ characterId, characterName, onImported
         }
     };
 
+    /** 立刻按自动同步的那条路径跑一次（验证用，也方便手动补一次）。 */
+    const handleSyncNow = async () => {
+        if (busy) return;
+        setBusy(true);
+        setError("");
+        try {
+            persistSyncConfig({ url: url.trim() || syncConfig.url, characterId });
+            const result = await runStudyMemorySync();
+            setSyncStatus(describeStudyMemorySyncState(loadStudyMemorySyncState()));
+            if (result.status === "ok") {
+                await onImported(result.added, result.skipped);
+                onNotice?.(result.added > 0 ? `自动同步：新增 ${result.added} 条` : "自动同步：没有新内容");
+            } else if (result.status === "error") {
+                setError(result.error);
+            } else {
+                setError(result.reason);
+            }
+        } finally {
+            setBusy(false);
+        }
+    };
+
     const handleImport = async () => {
         if (busy || !preview) return;
         setBusy(true);
         setError("");
         try {
             const summary = await importMemoriesIntoCharacter(characterId, preview.entries);
+            // 导入成功说明链接与角色都可用：把配置存下来，之后自动同步就能用
+            persistSyncConfig({ url: url.trim() || syncConfig.url, characterId });
             await onImported(summary.added, summary.skipped);
             onNotice?.(summary.added > 0
                 ? `已导入 ${summary.added} 条记忆${summary.skipped ? `（${summary.skipped} 条已存在，跳过）` : ""}`
@@ -87,7 +143,7 @@ export function StudyMemoryImportButton({ characterId, characterName, onImported
         <>
             <button
                 className={buttonClass}
-                onClick={() => { reset(); setOpen(true); }}
+                onClick={openDialog}
             >
                 <Download size={variant === "block" ? 14 : 15} strokeWidth={1.8} />
                 <span>从链接导入</span>
@@ -163,6 +219,51 @@ export function StudyMemoryImportButton({ characterId, characterName, onImported
                                     )}
                                 </div>
                             )}
+
+                            {/* 自动同步：打开后由 StudyMemorySyncScheduler 定时静默跑 */}
+                            <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid rgba(0,0,0,0.08)" }}>
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                                    <div>
+                                        <div className="ts-14">自动同步</div>
+                                        <div className="ts-12 text-secondary" style={{ marginTop: 2 }}>
+                                            打开后每隔一段时间自动拉取合并；需要手机与电脑同一网络、电脑开着。
+                                        </div>
+                                    </div>
+                                    <input
+                                        type="checkbox"
+                                        checked={syncConfig.enabled}
+                                        disabled={busy || !(url.trim() || syncConfig.url)}
+                                        onChange={event => persistSyncConfig({ enabled: event.target.checked, characterId })}
+                                    />
+                                </div>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
+                                    <span className="ts-12 text-secondary">间隔</span>
+                                    <select
+                                        className="input-field"
+                                        style={{ width: 120 }}
+                                        value={String(syncConfig.intervalMinutes)}
+                                        disabled={busy || !syncConfig.enabled}
+                                        onChange={event => persistSyncConfig({ intervalMinutes: Number(event.target.value) })}
+                                    >
+                                        {[10, 30, 60, 180, 360].map(m => (
+                                            <option key={m} value={String(m)}>{m >= 60 ? `${m / 60} 小时` : `${m} 分钟`}</option>
+                                        ))}
+                                    </select>
+                                    <span className="ts-12 text-secondary">同步给 {characterName || characterId}</span>
+                                    <button
+                                        className="ui-chip"
+                                        style={{ marginLeft: "auto" }}
+                                        onClick={() => void handleSyncNow()}
+                                        disabled={busy || !(url.trim() || syncConfig.url)}
+                                    >
+                                        <RefreshCw size={14} />
+                                        <span>{busy ? "同步中…" : "立即同步一次"}</span>
+                                    </button>
+                                </div>
+                                <p className="ts-12 text-secondary" style={{ margin: "8px 0 0" }}>
+                                    {syncStatus}
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </div>
